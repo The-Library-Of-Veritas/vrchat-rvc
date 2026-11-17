@@ -3,7 +3,7 @@ SRC_DIRS ?= ./src ./tinypngout
 
 CC=clang
 
-BUILDROOT := "buildroot-2022.02.1"
+BUILDROOT := buildroot-2022.02.1
 
 SRCS := $(shell find $(SRC_DIRS) -name '*.cpp' -or -name '*.c' -or -name '*.s')
 OBJS := $(addsuffix .o,$(basename $(SRCS)))
@@ -37,9 +37,20 @@ LINUX_PAYLOAD=linux/arch/riscv/boot/Image
 RAYTRACE_PAYLOAD=rust_raytrace/target/riscv32ima-unknown-none-elf/release/rust_raytrace.bin
 
 BUILDROOT_MARKER=$(BUILDROOT)/build.marker
-$(BUILDROOT_MARKER):
-	if [ ! -f $(BUILDROOT_MARKER) ]; then $(MAKE) -C $(BUILDROOT); fi
+BUILDROOT_CONFIG=$(BUILDROOT)/.config
+BUILDROOT_OUTPUTS=$(Q)gcc $(BUILDROOT)/output/images/rootfs.cpio $(BUILDROOT)/output/images/rootfs.romfs
+
+ifneq ($(words $(wildcard $(BUILDROOT_OUTPUTS))),$(words $(BUILDROOT_OUTPUTS)))
+.PHONY: buildroot-missing-outputs
+$(BUILDROOT_MARKER): buildroot-missing-outputs
+endif
+
+$(BUILDROOT_MARKER): $(BUILDROOT_CONFIG)
+	$(MAKE) -C $(BUILDROOT)
 	touch $@
+
+$(BUILDROOT_CONFIG): buildroot-config
+	$(MAKE) -C $(BUILDROOT) defconfig BR2_DEFCONFIG="$(abspath $<)"
 
 $(PAYLOAD): $(shell find rust_payload/src -type f)
 	cd rust_payload; \
